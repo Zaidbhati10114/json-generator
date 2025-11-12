@@ -10,8 +10,13 @@
     "format": "biome format --write"
   },
   "dependencies": {
+    "@ai-sdk/google": "^2.0.31",
+    "ai": "^5.0.92",
+    "dotenv": "^17.2.3",
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.553.0",
+    "mongodb": "^7.0.0",
+    "nanoid": "^5.1.6",
     "next": "16.0.1",
     "react": "19.2.0",
     "react-dom": "19.2.0"
