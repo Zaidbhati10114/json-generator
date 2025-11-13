@@ -1,7 +1,16 @@
 "use client";
 import { motion } from "framer-motion";
 import { Link2, RefreshCw, Copy, Check, Clock, Code } from "lucide-react";
-import { useState } from "react";
+import { Dispatch, SetStateAction, useState } from "react";
+
+interface CreateApiProps {
+  isDark: boolean;
+  borderColor: string;
+  generatedData?: any; // You can refine this later to your actual data shape
+  showUrlOptions: boolean;
+  apiUrl: string;
+  setApiUrl: Dispatch<SetStateAction<string>>;
+}
 
 const CreateApiUrl = ({
   showUrlOptions,
@@ -9,7 +18,7 @@ const CreateApiUrl = ({
   setApiUrl,
   isDark,
   borderColor,
-}) => {
+}: CreateApiProps) => {
   const [isCreatingUrl, setIsCreatingUrl] = useState(false);
   const [copied, setCopied] = useState(false);
 

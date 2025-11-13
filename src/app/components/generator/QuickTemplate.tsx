@@ -2,7 +2,12 @@
 import { motion } from "framer-motion";
 import { Database, Users, Package, MapPin } from "lucide-react";
 
-const QuickTemplates = ({ setPrompt, isDark }) => {
+interface QuickTemplatesProps {
+  setPrompt: React.Dispatch<React.SetStateAction<string>>;
+  isDark: boolean;
+}
+
+const QuickTemplates = ({ setPrompt, isDark }: QuickTemplatesProps) => {
   const useCases = [
     {
       id: "mock-api",

@@ -2,7 +2,13 @@
 import { motion } from "framer-motion";
 import { Zap, Database, Shield, Rocket, Sparkles } from "lucide-react";
 
-const FeaturesList = ({ isDark, textSecondary }) => {
+interface EmptyStateProps {
+  isDark: boolean;
+  textPrimary: string;
+  textSecondary: string;
+}
+
+const FeaturesList = ({ isDark, textSecondary }: EmptyStateProps) => {
   const features = [
     {
       icon: Zap,

@@ -3,6 +3,17 @@ import { motion } from "framer-motion";
 import { X } from "lucide-react";
 import JsonPreview from "./JsonPreview";
 import CreateApiUrl from "./CreateApiUrl";
+import { Dispatch, SetStateAction } from "react";
+
+interface GeneratedResultsProps {
+  isDark: boolean;
+  borderColor: string;
+  generatedData: any; // You can refine this later to your actual data shape
+  showUrlOptions: boolean;
+  apiUrl: string;
+  setApiUrl: Dispatch<SetStateAction<string>>;
+  handleClear: () => void;
+}
 
 const GeneratedResults = ({
   isDark,
@@ -12,7 +23,7 @@ const GeneratedResults = ({
   apiUrl,
   setApiUrl,
   handleClear,
-}) => {
+}: GeneratedResultsProps) => {
   return (
     <motion.div
       key="results"
