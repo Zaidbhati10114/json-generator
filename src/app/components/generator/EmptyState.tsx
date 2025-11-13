@@ -2,7 +2,17 @@
 import { motion } from "framer-motion";
 import { Database } from "lucide-react";
 
-const EmptyState = ({ isDark, textPrimary, textSecondary }) => (
+interface EmptyStateProps {
+  isDark: boolean;
+  textPrimary: string;
+  textSecondary: string;
+}
+
+const EmptyState = ({
+  isDark,
+  textPrimary,
+  textSecondary,
+}: EmptyStateProps) => (
   <motion.div
     key="empty"
     initial={{ opacity: 0, x: 20 }}

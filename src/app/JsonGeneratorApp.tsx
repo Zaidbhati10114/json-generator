@@ -10,6 +10,9 @@ import QuickTemplates from "./components/generator/QuickTemplate";
 import PromptInput from "./components/generator/PromptInput";
 import FeaturesList from "./components/generator/FeaturesList";
 import EmptyState from "./components/generator/EmptyState";
+import { toast } from "sonner";
+import { AdaptiveSkeleton } from "./components/generator/AdaptiveSkeleton";
+import { getPromptCategory } from "@/lib/utils";
 
 const JsonGeneratorApp = () => {
   const { isDark } = useTheme();
@@ -45,8 +48,7 @@ const JsonGeneratorApp = () => {
       if (!res.ok) throw new Error(json.error || "Failed to generate data");
       setGeneratedData(json.generatedData);
     } catch (error) {
-      console.error("Error generating data:", error);
-      alert("Error generating data. Try again.");
+      toast.error("Error generating data. Try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -70,8 +72,8 @@ const JsonGeneratorApp = () => {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 4000);
     } catch (error) {
-      console.error("Error creating live URL:", error);
-      alert("Error creating live URL. Try again.");
+      //console.error("Error creating live URL:", error);
+      toast.error("Error creating live URL. Try again.");
     } finally {
       setIsSaving(false);
     }
@@ -84,9 +86,10 @@ const JsonGeneratorApp = () => {
   };
 
   const handleClear = () => {
+    setPrompt("");
     setGeneratedData(null);
     setApiUrl("");
-    setPrompt("");
+    setIsGenerating(false);
   };
 
   return (
@@ -170,10 +173,11 @@ const JsonGeneratorApp = () => {
           {/* RIGHT PANEL */}
           <AnimatePresence mode="wait">
             {isGenerating ? (
-              <FeaturesList
-                key="features"
-                isDark={isDark}
+              <AdaptiveSkeleton
+                category={getPromptCategory(prompt)}
                 textSecondary={textSecondary}
+                cardBg={cardBg}
+                borderColor={borderColor}
               />
             ) : generatedData ? (
               <motion.div

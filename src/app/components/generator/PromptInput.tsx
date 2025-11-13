@@ -1,13 +1,21 @@
 "use client";
 import { motion } from "framer-motion";
 
+interface PromptInputProps {
+  prompt: string;
+  setPrompt: React.Dispatch<React.SetStateAction<string>>;
+  isDark: boolean;
+  textSecondary: string;
+  textPrimary: string;
+}
+
 const PromptInput = ({
   prompt,
   setPrompt,
   isDark,
   textSecondary,
   textPrimary,
-}) => {
+}: PromptInputProps) => {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-3">

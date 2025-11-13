@@ -2,7 +2,17 @@
 import { motion } from "framer-motion";
 import { Download } from "lucide-react";
 
-const JsonPreview = ({ generatedData, isDark, borderColor }) => {
+interface JsonPreviewProps {
+  isDark: boolean;
+  borderColor: string;
+  generatedData?: any;
+}
+
+const JsonPreview = ({
+  generatedData,
+  isDark,
+  borderColor,
+}: JsonPreviewProps) => {
   const handleDownload = () => {
     const blob = new Blob([JSON.stringify(generatedData, null, 2)], {
       type: "application/json",
