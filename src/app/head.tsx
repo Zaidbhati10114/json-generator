@@ -1,6 +1,12 @@
 export default function Head() {
   return (
     <>
+      <title>JSON Generator | AI-Powered Mock API Builder</title>
+      <meta
+        name="description"
+        content="Generate realistic JSON datasets instantly using AI — no signup, no credit card."
+      />
+      <link rel="icon" type="image/png" href="/favicon.png" />
       <script
         dangerouslySetInnerHTML={{
           __html: `

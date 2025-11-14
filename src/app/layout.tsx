@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "JSON Generator | AI-Powered Mock API Builder",
   description:
     "Generate realistic JSON datasets instantly using AI — no signup, no credit card. Build mock APIs and test your projects faster.",
+  // icons: {
+  //   icon: [{ url: "/favicon.png", type: "image/png", sizes: "32x32" }],
+  // },
   openGraph: {
     title: "JSON Generator by Zaid Bhati",
     description:
