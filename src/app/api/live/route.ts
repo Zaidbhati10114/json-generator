@@ -50,7 +50,7 @@ export async function POST(request: Request) {
             requestCount: 0,
         });
 
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yourapp.com";
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://json-generator-mu.vercel.app";
         const apiUrl = `${baseUrl}/api/live/${shortId}`;
 
         return NextResponse.json(

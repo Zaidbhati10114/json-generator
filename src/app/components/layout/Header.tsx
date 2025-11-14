@@ -43,7 +43,7 @@ const Header = () => {
 
           {/* GitHub button */}
           <Link
-            href="https://github.com/zaidbhati"
+            href="https://github.com/Zaidbhati10114"
             target="_blank"
             rel="noopener noreferrer"
             className={`p-2 rounded-md transition-all ${

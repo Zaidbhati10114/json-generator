@@ -26,7 +26,7 @@ const CreateApiUrl = ({
     setIsCreatingUrl(true);
     setTimeout(() => {
       setApiUrl(
-        `https://yourapp.com/api/${Math.random().toString(36).substr(2, 9)}`
+        `https://localhost:3000/api/${Math.random().toString(36).substr(2, 9)}`
       );
       setIsCreatingUrl(false);
     }, 1500);

@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     title: "JSON Generator by Zaid Bhati",
     description:
       "AI-powered JSON generator for developers. Create data or live mock APIs in seconds.",
-    url: "https://yourapp.vercel.app",
+    url: "https://json-generator-mu.vercel.app",
     // images: ["/og-image.png"],
   },
   twitter: {
