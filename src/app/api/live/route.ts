@@ -48,6 +48,7 @@ export async function POST(request: Request) {
             ip,
             userAgent,
             requestCount: 0,
+            lastAccessedAt: new Date(),
         });
 
         const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://json-generator-mu.vercel.app";

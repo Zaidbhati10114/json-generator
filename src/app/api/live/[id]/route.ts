@@ -24,7 +24,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
         await db.collection("live_datasets").updateOne(
             { shortId: id },
-            { $inc: { requestCount: 1 } }
+            { $set: { lastAccessedAt: new Date() }, $inc: { requestCount: 1 } }
         );
 
         return NextResponse.json(dataset.data);
