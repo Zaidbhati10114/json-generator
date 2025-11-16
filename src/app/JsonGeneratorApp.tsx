@@ -2,7 +2,15 @@
 
 import React, { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, RefreshCw, Link2, Check, Copy, X } from "lucide-react";
+import {
+  Sparkles,
+  RefreshCw,
+  Link2,
+  Check,
+  Copy,
+  X,
+  AlertTriangle,
+} from "lucide-react";
 import { useTheme } from "./components/context/ThemeContext";
 import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
@@ -30,7 +38,7 @@ const JsonGeneratorApp = () => {
   const textSecondary = isDark ? "text-gray-400" : "text-gray-600";
   const borderColor = isDark ? "border-gray-800" : "border-gray-200";
 
-  // --- GENERATE DATA ---
+  // GENERATE DATA ---------------------------------
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     setIsGenerating(true);
@@ -46,6 +54,7 @@ const JsonGeneratorApp = () => {
 
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to generate data");
+
       setGeneratedData(json.generatedData);
     } catch (error) {
       toast.error("Error generating data. Try again.");
@@ -54,10 +63,11 @@ const JsonGeneratorApp = () => {
     }
   };
 
-  // --- MAKE DATA LIVE ---
+  // CREATE LIVE URL ---------------------------------
   const handleCreateUrl = async () => {
     if (!generatedData) return;
     setIsSaving(true);
+
     try {
       const res = await fetch("/api/live", {
         method: "POST",
@@ -70,21 +80,23 @@ const JsonGeneratorApp = () => {
 
       setApiUrl(json.apiUrl);
       setShowConfetti(true);
+
       setTimeout(() => setShowConfetti(false), 4000);
     } catch (error) {
-      //console.error("Error creating live URL:", error);
       toast.error("Error creating live URL. Try again.");
     } finally {
       setIsSaving(false);
     }
   };
 
+  // COPY ---------------------------------
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
+  // RESET ---------------------------------
   const handleClear = () => {
     setPrompt("");
     setGeneratedData(null);
@@ -96,11 +108,10 @@ const JsonGeneratorApp = () => {
     <div
       className={`min-h-screen ${bgClass} ${textPrimary} transition-colors duration-300 flex flex-col relative overflow-hidden`}
     >
-      {/* {showConfetti && <Confetti recycle={false} numberOfPieces={180} />} */}
-
       <Header />
 
       <main className="flex-1 max-w-[1600px] mx-auto px-6 py-8 w-full">
+        {/* HERO */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -114,6 +125,7 @@ const JsonGeneratorApp = () => {
           </p>
         </motion.div>
 
+        {/* MAIN PANELS */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* LEFT PANEL */}
           <motion.div
@@ -121,7 +133,7 @@ const JsonGeneratorApp = () => {
             animate={{ opacity: 1, x: 0 }}
             className={`${cardBg} border ${borderColor} rounded-2xl p-8 shadow-xl relative`}
           >
-            {/* Shimmer effect while generating */}
+            {/* Shimmer while generating */}
             {isGenerating && (
               <motion.div
                 className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent"
@@ -141,6 +153,7 @@ const JsonGeneratorApp = () => {
             )}
 
             <QuickTemplates setPrompt={setPrompt} isDark={isDark} />
+
             <PromptInput
               prompt={prompt}
               setPrompt={setPrompt}
@@ -149,6 +162,7 @@ const JsonGeneratorApp = () => {
               textPrimary={textPrimary}
             />
 
+            {/* GENERATE BUTTON */}
             <motion.button
               whileHover={{ scale: 1.01 }}
               whileTap={{ scale: 0.99 }}
@@ -187,49 +201,43 @@ const JsonGeneratorApp = () => {
                 exit={{ opacity: 0, x: -20 }}
                 className={`${cardBg} border ${borderColor} rounded-2xl p-8 shadow-xl flex flex-col relative`}
               >
-                {/* Pulsing gradient while saving */}
+                {/* Saving shimmer */}
                 {isSaving && (
                   <motion.div
                     className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-purple-500/10"
-                    animate={{
-                      opacity: [0.4, 0.8, 0.4],
-                    }}
-                    transition={{
-                      duration: 1.5,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                    style={{
-                      pointerEvents: "none",
-                    }}
+                    animate={{ opacity: [0.4, 0.8, 0.4] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
                   />
                 )}
 
-                <div className="flex items-center justify-between mb-4 relative z-10">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-4 z-10">
                   <h3 className="text-xl font-bold">Generated Data</h3>
+
                   <motion.button
                     whileHover={{ scale: 1.1, rotate: 90 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={handleClear}
                     className={`p-2 ${
                       isDark ? "hover:bg-gray-800" : "hover:bg-gray-100"
-                    } rounded-lg transition-colors`}
+                    } rounded-lg`}
                   >
                     <X className="w-5 h-5" />
                   </motion.button>
                 </div>
 
+                {/* JSON preview */}
                 <div
                   className={`${
                     isDark ? "bg-gray-800" : "bg-gray-50"
-                  } rounded-xl p-4 overflow-auto max-h-80 border ${borderColor} relative z-10`}
+                  } rounded-xl p-4 overflow-auto max-h-80 border ${borderColor} z-10`}
                 >
                   <pre className="text-sm whitespace-pre-wrap">
                     {JSON.stringify(generatedData, null, 2)}
                   </pre>
                 </div>
 
-                {/* Create Live URL */}
+                {/* CREATE LIVE URL */}
                 {!apiUrl && (
                   <motion.button
                     whileHover={{ scale: 1.02 }}
@@ -252,18 +260,19 @@ const JsonGeneratorApp = () => {
                   </motion.button>
                 )}
 
-                {/* API URL Display */}
+                {/* LIVE API URL BLOCK + WARNING */}
                 {apiUrl && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mt-6 z-10"
+                    className="mt-6 space-y-4 z-10"
                   >
                     <label
-                      className={`block text-sm font-medium mb-2 ${textSecondary}`}
+                      className={`block text-sm font-medium ${textSecondary}`}
                     >
                       Live API URL
                     </label>
+
                     <div className="flex gap-2 items-center">
                       <input
                         value={apiUrl}
@@ -274,6 +283,7 @@ const JsonGeneratorApp = () => {
                             : "bg-gray-50 border-gray-300"
                         }`}
                       />
+
                       <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
@@ -291,6 +301,44 @@ const JsonGeneratorApp = () => {
                         )}
                       </motion.button>
                     </div>
+
+                    {/* WARNING BOX */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className={`rounded-xl border p-4 flex gap-3 text-sm ${
+                        isDark
+                          ? "border-yellow-700 bg-yellow-900/20 text-yellow-300"
+                          : "border-yellow-400 bg-yellow-50 text-yellow-800"
+                      }`}
+                    >
+                      <AlertTriangle
+                        className={`w-5 h-5 mt-0.5 ${
+                          isDark ? "text-yellow-400" : "text-yellow-600"
+                        }`}
+                      />
+
+                      <div className="space-y-1">
+                        <p className="font-medium">Live URL Rules</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>
+                            This URL expires in{" "}
+                            <span className="font-semibold">7 days</span>.
+                          </li>
+                          <li>
+                            If nobody fetches this URL for{" "}
+                            <span className="font-semibold">
+                              3 consecutive days
+                            </span>
+                            , it will be auto-deleted.
+                          </li>
+                          <li>
+                            Once deleted, the URL and data cannot be recovered.
+                          </li>
+                        </ul>
+                      </div>
+                    </motion.div>
                   </motion.div>
                 )}
               </motion.div>
