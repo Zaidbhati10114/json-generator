@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 
 const google = createGoogleGenerativeAI();
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
         const { prompt } = await request.json();
 
@@ -40,10 +40,11 @@ export async function POST(request: Request) {
             generatedData: parsedData,
             rawText: cleanedText,
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error("❌ Error generating text:", error);
+        const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
         return NextResponse.json(
-            { error: error.message || "Internal Server Error" },
+            { error: errorMessage },
             { status: 500 }
         );
     }

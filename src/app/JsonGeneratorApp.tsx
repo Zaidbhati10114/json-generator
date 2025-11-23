@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Sparkles,
@@ -16,22 +16,33 @@ import Header from "./components/layout/Header";
 import Footer from "./components/layout/Footer";
 import QuickTemplates from "./components/generator/QuickTemplate";
 import PromptInput from "./components/generator/PromptInput";
-import FeaturesList from "./components/generator/FeaturesList";
 import EmptyState from "./components/generator/EmptyState";
 import { toast } from "sonner";
 import { AdaptiveSkeleton } from "./components/generator/AdaptiveSkeleton";
 import { getPromptCategory } from "@/lib/utils";
 
-const JsonGeneratorApp = () => {
-  const { isDark } = useTheme();
-  const [prompt, setPrompt] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [generatedData, setGeneratedData] = useState<any>(null);
-  const [apiUrl, setApiUrl] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [showConfetti, setShowConfetti] = useState(false);
+// Import types
+import type {
+  GeneratedData,
+  GenerateApiResponse,
+  LiveApiResponse,
+} from "../../types/index";
 
+const JsonGeneratorApp: React.FC = () => {
+  const { isDark } = useTheme();
+
+  // Properly typed state
+  const [prompt, setPrompt] = useState<string>("");
+  const [isGenerating, setIsGenerating] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [generatedData, setGeneratedData] = useState<GeneratedData | null>(
+    null
+  );
+  const [apiUrl, setApiUrl] = useState<string>("");
+  const [copied, setCopied] = useState<boolean>(false);
+  const [showConfetti, setShowConfetti] = useState<boolean>(false);
+
+  // Theme classes
   const bgClass = isDark ? "bg-gray-950" : "bg-gray-50";
   const cardBg = isDark ? "bg-gray-900" : "bg-white";
   const textPrimary = isDark ? "text-white" : "text-gray-900";
@@ -39,70 +50,127 @@ const JsonGeneratorApp = () => {
   const borderColor = isDark ? "border-gray-800" : "border-gray-200";
 
   // GENERATE DATA ---------------------------------
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+  const handleGenerate = useCallback(async (): Promise<void> => {
+    if (!prompt.trim()) {
+      toast.error("Please enter a prompt");
+      return;
+    }
+
     setIsGenerating(true);
     setGeneratedData(null);
     setApiUrl("");
 
     try {
-      const res = await fetch("/api/generate", {
+      const response = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
       });
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to generate data");
+      // Parse response
+      const json: GenerateApiResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.error || "Failed to generate data");
+      }
+
+      // Validate that we got data
+      if (!json.generatedData) {
+        throw new Error("No data received from API");
+      }
 
       setGeneratedData(json.generatedData);
+      toast.success("Data generated successfully!");
     } catch (error) {
-      toast.error("Error generating data. Try again.");
+      console.error("Generation error:", error);
+
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error("Error generating data. Please try again.");
+      }
     } finally {
       setIsGenerating(false);
     }
-  };
+  }, [prompt]);
 
   // CREATE LIVE URL ---------------------------------
-  const handleCreateUrl = async () => {
-    if (!generatedData) return;
+  const handleCreateUrl = useCallback(async (): Promise<void> => {
+    if (!generatedData) {
+      toast.error("No data to create URL for");
+      return;
+    }
+
     setIsSaving(true);
 
     try {
-      const res = await fetch("/api/live", {
+      const response = await fetch("/api/live", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: generatedData, prompt }),
+        body: JSON.stringify({
+          data: generatedData,
+          prompt,
+        }),
       });
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to create live URL");
+      const json: LiveApiResponse = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.error || "Failed to create live URL");
+      }
+
+      if (!json.apiUrl) {
+        throw new Error("No URL received from API");
+      }
 
       setApiUrl(json.apiUrl);
       setShowConfetti(true);
+      toast.success("Live URL created!");
 
+      // Hide confetti after 4 seconds
       setTimeout(() => setShowConfetti(false), 4000);
     } catch (error) {
-      toast.error("Error creating live URL. Try again.");
+      console.error("URL creation error:", error);
+
+      if (error instanceof Error) {
+        toast.error(error.message);
+      } else {
+        toast.error("Error creating live URL. Please try again.");
+      }
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [generatedData, prompt]);
 
   // COPY ---------------------------------
-  const handleCopy = (text: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopy = useCallback((text: string): void => {
+    if (!text) {
+      toast.error("Nothing to copy");
+      return;
+    }
+
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true);
+        toast.success("Copied to clipboard!");
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((error) => {
+        console.error("Copy failed:", error);
+        toast.error("Failed to copy to clipboard");
+      });
+  }, []);
 
   // RESET ---------------------------------
-  const handleClear = () => {
+  const handleClear = useCallback((): void => {
     setPrompt("");
     setGeneratedData(null);
     setApiUrl("");
     setIsGenerating(false);
-  };
+    setIsSaving(false);
+    setCopied(false);
+  }, []);
 
   return (
     <div
@@ -168,7 +236,11 @@ const JsonGeneratorApp = () => {
               whileTap={{ scale: 0.99 }}
               onClick={handleGenerate}
               disabled={!prompt.trim() || isGenerating}
-              className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold text-lg disabled:opacity-50 flex items-center justify-center gap-3 relative overflow-hidden"
+              className="w-full px-6 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3 relative overflow-hidden"
+              aria-label={
+                isGenerating ? "Generating data" : "Generate JSON data"
+              }
+              aria-busy={isGenerating}
             >
               {isGenerating ? (
                 <>
@@ -188,6 +260,7 @@ const JsonGeneratorApp = () => {
           <AnimatePresence mode="wait">
             {isGenerating ? (
               <AdaptiveSkeleton
+                key="skeleton"
                 category={getPromptCategory(prompt)}
                 textSecondary={textSecondary}
                 cardBg={cardBg}
@@ -204,7 +277,7 @@ const JsonGeneratorApp = () => {
                 {/* Saving shimmer */}
                 {isSaving && (
                   <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-purple-500/10"
+                    className="absolute inset-0 bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-purple-500/10 rounded-2xl"
                     animate={{ opacity: [0.4, 0.8, 0.4] }}
                     transition={{ duration: 1.5, repeat: Infinity }}
                   />
@@ -220,7 +293,8 @@ const JsonGeneratorApp = () => {
                     onClick={handleClear}
                     className={`p-2 ${
                       isDark ? "hover:bg-gray-800" : "hover:bg-gray-100"
-                    } rounded-lg`}
+                    } rounded-lg transition-colors`}
+                    aria-label="Clear generated data"
                   >
                     <X className="w-5 h-5" />
                   </motion.button>
@@ -232,7 +306,7 @@ const JsonGeneratorApp = () => {
                     isDark ? "bg-gray-800" : "bg-gray-50"
                   } rounded-xl p-4 overflow-auto max-h-80 border ${borderColor} z-10`}
                 >
-                  <pre className="text-sm whitespace-pre-wrap">
+                  <pre className="text-sm whitespace-pre-wrap font-mono">
                     {JSON.stringify(generatedData, null, 2)}
                   </pre>
                 </div>
@@ -244,7 +318,11 @@ const JsonGeneratorApp = () => {
                     whileTap={{ scale: 0.98 }}
                     onClick={handleCreateUrl}
                     disabled={isSaving}
-                    className="mt-6 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50 z-10"
+                    className="mt-6 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                    aria-label={
+                      isSaving ? "Creating live URL" : "Make data live"
+                    }
+                    aria-busy={isSaving}
                   >
                     {isSaving ? (
                       <>
@@ -269,12 +347,14 @@ const JsonGeneratorApp = () => {
                   >
                     <label
                       className={`block text-sm font-medium ${textSecondary}`}
+                      htmlFor="api-url-input"
                     >
                       Live API URL
                     </label>
 
                     <div className="flex gap-2 items-center">
                       <input
+                        id="api-url-input"
                         value={apiUrl}
                         readOnly
                         className={`flex-1 px-4 py-2 border ${borderColor} rounded-lg text-sm font-mono ${
@@ -282,6 +362,7 @@ const JsonGeneratorApp = () => {
                             ? "bg-gray-800 border-gray-700"
                             : "bg-gray-50 border-gray-300"
                         }`}
+                        aria-label="Generated API URL"
                       />
 
                       <motion.button
@@ -292,7 +373,10 @@ const JsonGeneratorApp = () => {
                           isDark
                             ? "bg-gray-800 hover:bg-gray-700"
                             : "bg-gray-100 hover:bg-gray-200"
-                        }`}
+                        } transition-colors`}
+                        aria-label={
+                          copied ? "URL copied" : "Copy URL to clipboard"
+                        }
                       >
                         {copied ? (
                           <Check className="w-5 h-5 text-green-500" />
@@ -312,11 +396,14 @@ const JsonGeneratorApp = () => {
                           ? "border-yellow-700 bg-yellow-900/20 text-yellow-300"
                           : "border-yellow-400 bg-yellow-50 text-yellow-800"
                       }`}
+                      role="alert"
+                      aria-live="polite"
                     >
                       <AlertTriangle
-                        className={`w-5 h-5 mt-0.5 ${
+                        className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
                           isDark ? "text-yellow-400" : "text-yellow-600"
                         }`}
+                        aria-hidden="true"
                       />
 
                       <div className="space-y-1">

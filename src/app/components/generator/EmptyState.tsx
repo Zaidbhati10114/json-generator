@@ -1,6 +1,6 @@
-"use client";
-import { motion } from "framer-motion";
-import { Database } from "lucide-react";
+// components/generator/EmptyState.tsx
+import React from "react";
+import { Sparkles } from "lucide-react";
 
 interface EmptyStateProps {
   isDark: boolean;
@@ -8,39 +8,28 @@ interface EmptyStateProps {
   textSecondary: string;
 }
 
-const EmptyState = ({
+const EmptyState: React.FC<EmptyStateProps> = ({
   isDark,
   textPrimary,
   textSecondary,
-}: EmptyStateProps) => (
-  <motion.div
-    key="empty"
-    initial={{ opacity: 0, x: 20 }}
-    animate={{ opacity: 1, x: 0 }}
-    exit={{ opacity: 0, x: -20 }}
-    className={`${isDark ? "bg-gray-900" : "bg-white"} border ${
-      isDark ? "border-gray-800" : "border-gray-200"
-    } rounded-2xl p-12 text-center flex flex-col items-center justify-center shadow-xl min-h-[600px]`}
-  >
-    <motion.div
-      animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
-      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-      className={`p-6 ${
-        isDark ? "bg-gray-800" : "bg-gray-100"
-      } rounded-2xl mb-6`}
+}) => {
+  return (
+    <div
+      className={`flex items-center justify-center h-full min-h-[400px] ${
+        isDark ? "bg-gray-900" : "bg-white"
+      } border ${isDark ? "border-gray-800" : "border-gray-200"} rounded-2xl`}
     >
-      <Database className="w-16 h-16 opacity-50" />
-    </motion.div>
-    <p className={`${textPrimary} text-lg font-medium mb-2`}>
-      Ready to Generate
-    </p>
-    <p className={`${textSecondary} text-sm`}>
-      Choose a template or describe your data
-    </p>
-    <p className={`${textSecondary} text-sm`}>
-      Results will appear here instantly
-    </p>
-  </motion.div>
-);
+      <div className="text-center p-8">
+        <Sparkles className={`w-16 h-16 mx-auto mb-4 ${textSecondary}`} />
+        <h3 className={`text-xl font-semibold mb-2 ${textPrimary}`}>
+          Ready to Generate
+        </h3>
+        <p className={textSecondary}>
+          Enter a prompt or select a template to get started
+        </p>
+      </div>
+    </div>
+  );
+};
 
 export default EmptyState;

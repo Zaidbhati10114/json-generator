@@ -1,12 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
 
-export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
+export async function GET(
+    request: NextRequest, // ✅ Added required request parameter
+    context: { params: Promise<{ id: string }> }
+) {
     try {
         const db = await getDb();
         //console.log("📦 Connected DB:", db.databaseName);
 
-        const { id } = await context.params; // ✅ FIXED — must await
+        const { id } = await context.params; // ✅ Already fixed
         //console.log("🔍 Looking for shortId:", id);
 
         const dataset = await db.collection("live_datasets").findOne({ shortId: id });

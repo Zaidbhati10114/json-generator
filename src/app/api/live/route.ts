@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
 import { nanoid } from "nanoid";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
         const db = await getDb();
         const body = await request.json();

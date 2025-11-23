@@ -1,47 +1,49 @@
-"use client";
-import { motion } from "framer-motion";
+// components/generator/PromptInput.tsx
+import React, { ChangeEvent } from "react";
 
 interface PromptInputProps {
   prompt: string;
-  setPrompt: React.Dispatch<React.SetStateAction<string>>;
+  setPrompt: (prompt: string) => void;
   isDark: boolean;
   textSecondary: string;
   textPrimary: string;
 }
 
-const PromptInput = ({
+const PromptInput: React.FC<PromptInputProps> = ({
   prompt,
   setPrompt,
   isDark,
   textSecondary,
   textPrimary,
-}: PromptInputProps) => {
+}) => {
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
+    setPrompt(e.target.value);
+  };
+
   return (
     <div className="mb-6">
-      <div className="flex items-center justify-between mb-3">
-        <label className="text-sm font-medium">Describe Your Data</label>
-        {prompt && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setPrompt("")}
-            className={`text-xs ${textSecondary} hover:${textPrimary} transition-colors`}
-          >
-            Clear
-          </motion.button>
-        )}
-      </div>
-
+      <label
+        htmlFor="prompt-input"
+        className={`block text-sm font-medium mb-2 ${textSecondary}`}
+      >
+        Describe your data
+      </label>
       <textarea
+        id="prompt-input"
         value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
-        placeholder="Describe the data you want to generate... Try clicking a template above or write your own!"
-        className={`w-full h-56 px-4 py-3 ${
+        onChange={handleChange}
+        placeholder="e.g., Generate 10 users with name, email, and age..."
+        className={`w-full px-4 py-3 rounded-xl border ${
           isDark
-            ? "bg-gray-800 border-gray-700 focus:border-purple-500"
-            : "bg-gray-50 border-gray-300 focus:border-purple-500"
-        } border rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 resize-none transition-all`}
+            ? "bg-gray-800 border-gray-700 text-white"
+            : "bg-white border-gray-300 text-gray-900"
+        } focus:ring-2 focus:ring-purple-500 focus:border-transparent`}
+        rows={4}
+        maxLength={500}
       />
+      <p className={`text-xs ${textSecondary} mt-1`}>
+        {prompt.length}/500 characters
+      </p>
     </div>
   );
 };

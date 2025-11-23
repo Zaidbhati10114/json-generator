@@ -20,7 +20,22 @@
     ],
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    // STRICT TYPE CHECKING
+    // "noImplicitAny": true,
+    // "strictNullChecks": true,
+    // "strictFunctionTypes": true,
+    // "strictBindCallApply": true,
+    // "strictPropertyInitialization": true,
+    // "noImplicitThis": true,
+    // "alwaysStrict": true,
+
+    // ADDITIONAL CHECKS
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+    // "noImplicitReturns": true,
+    // "noFallthroughCasesInSwitch": true,
+    // "noUncheckedIndexedAccess": true
   },
   "include": [
     "next-env.d.ts",

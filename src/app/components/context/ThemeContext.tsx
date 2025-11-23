@@ -1,4 +1,6 @@
+// components/context/ThemeContext.tsx
 "use client";
+
 import React, {
   createContext,
   useContext,
@@ -7,44 +9,36 @@ import React, {
   ReactNode,
 } from "react";
 
-// 🧩 Define the shape of your context
 interface ThemeContextType {
   isDark: boolean;
   toggleTheme: () => void;
 }
 
-// 🧩 Create context with a proper type
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-// 🧩 Define props for ThemeProvider
 interface ThemeProviderProps {
   children: ReactNode;
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  // ✅ Default theme is dark
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState<boolean>(false);
 
-  // Load user preference from localStorage if available
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    if (savedTheme) {
-      setIsDark(savedTheme === "dark");
-    } else {
-      // Default stays dark (no system preference check)
-      setIsDark(true);
-    }
+    const prefersDark = window.matchMedia(
+      "(prefers-color-scheme: dark)"
+    ).matches;
+
+    setIsDark(savedTheme === "dark" || (!savedTheme && prefersDark));
   }, []);
 
-  // Sync localStorage + HTML class for Tailwind
-  useEffect(() => {
-    localStorage.setItem("theme", isDark ? "dark" : "light");
-
-    if (isDark) document.documentElement.classList.add("dark");
-    else document.documentElement.classList.remove("dark");
-  }, [isDark]);
-
-  const toggleTheme = () => setIsDark((prev) => !prev);
+  const toggleTheme = (): void => {
+    setIsDark((prev) => {
+      const newTheme = !prev;
+      localStorage.setItem("theme", newTheme ? "dark" : "light");
+      return newTheme;
+    });
+  };
 
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme }}>
@@ -53,11 +47,12 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   );
 };
 
-// 🧩 Custom Hook with safety check
 export const useTheme = (): ThemeContextType => {
   const context = useContext(ThemeContext);
-  if (!context) {
+
+  if (context === undefined) {
     throw new Error("useTheme must be used within a ThemeProvider");
   }
+
   return context;
 };
