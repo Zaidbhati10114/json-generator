@@ -20,6 +20,7 @@ import EmptyState from "./components/generator/EmptyState";
 import { toast } from "sonner";
 import { AdaptiveSkeleton } from "./components/generator/AdaptiveSkeleton";
 import { getPromptCategory } from "@/lib/utils";
+import { trackEvent, captureException } from "@/lib/logrocket";
 
 // Import types
 import type {
@@ -56,6 +57,13 @@ const JsonGeneratorApp: React.FC = () => {
       return;
     }
 
+    // Track event with logrocket
+
+    trackEvent("data_generation_started", {
+      promptLength: prompt.length,
+      category: getPromptCategory(prompt),
+    });
+
     setIsGenerating(true);
     setGeneratedData(null);
     setApiUrl("");
@@ -81,14 +89,25 @@ const JsonGeneratorApp: React.FC = () => {
 
       setGeneratedData(json.generatedData);
       toast.success("Data generated successfully!");
+      trackEvent("data_generation_success", {
+        dataSize: JSON.stringify(json.generatedData).length,
+      });
     } catch (error) {
       console.error("Generation error:", error);
 
       if (error instanceof Error) {
+        captureException(error, {
+          context: "data_generation",
+          prompt: prompt.slice(0, 100), // First 100 chars only
+        });
         toast.error(error.message);
       } else {
         toast.error("Error generating data. Please try again.");
       }
+      // track failure
+      trackEvent("data_generation_failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -100,6 +119,8 @@ const JsonGeneratorApp: React.FC = () => {
       toast.error("No data to create URL for");
       return;
     }
+
+    trackEvent("live_url_creation_started");
 
     setIsSaving(true);
 
@@ -127,16 +148,29 @@ const JsonGeneratorApp: React.FC = () => {
       setShowConfetti(true);
       toast.success("Live URL created!");
 
+      // Track success
+      trackEvent("live_url_creation_success", {
+        urlId: json.id,
+        dataSize: JSON.stringify(generatedData).length,
+      });
+
       // Hide confetti after 4 seconds
       setTimeout(() => setShowConfetti(false), 4000);
     } catch (error) {
       console.error("URL creation error:", error);
 
       if (error instanceof Error) {
+        captureException(error, {
+          context: "url_creation",
+        });
         toast.error(error.message);
       } else {
         toast.error("Error creating live URL. Please try again.");
       }
+      // Track failure
+      trackEvent("live_url_creation_failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     } finally {
       setIsSaving(false);
     }
