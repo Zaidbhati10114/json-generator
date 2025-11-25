@@ -28,6 +28,8 @@ export type GeneratedData = JsonObject | JsonArray;
 export interface GenerateApiResponse {
     generatedData: GeneratedData;
     error?: string;
+    retryAfter?: number; // seconds until rate limit resets
+    resetTime?: string; // ISO timestamp
 }
 
 export interface LiveApiResponse {
