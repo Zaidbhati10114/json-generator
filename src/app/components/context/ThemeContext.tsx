@@ -21,9 +21,12 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [isDark, setIsDark] = useState<boolean>(false);
+  // Initialize with true (dark mode) to prevent flash
+  const [isDark, setIsDark] = useState<boolean>(true);
+  const [mounted, setMounted] = useState<boolean>(false);
 
   useEffect(() => {
+    setMounted(true);
     const savedTheme = localStorage.getItem("theme");
     const prefersDark = window.matchMedia(
       "(prefers-color-scheme: dark)"
@@ -39,6 +42,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
       return newTheme;
     });
   };
+
+  // Prevent rendering until mounted to avoid hydration mismatch
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <ThemeContext.Provider value={{ isDark, toggleTheme }}>

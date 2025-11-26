@@ -243,7 +243,7 @@ const JsonGeneratorApp: React.FC = () => {
                 <div
                   className={`${
                     isDark ? "bg-gray-800" : "bg-gray-50"
-                  } rounded-xl p-4 overflow-auto max-h-80 border ${borderColor} z-10`}
+                  } rounded-xl p-4 overflow-auto max-h-80 border ${borderColor} relative z-[1]`}
                 >
                   <pre className="text-sm whitespace-pre-wrap font-mono">
                     {JSON.stringify(generatedData, null, 2)}
@@ -252,13 +252,13 @@ const JsonGeneratorApp: React.FC = () => {
 
                 {/* CREATE LIVE URL */}
                 {!apiUrl && (
-                  <div className="mt-6 flex items-center gap-2">
+                  <div className="mt-6 relative z-[100]">
                     <motion.button
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={handleCreateUrl}
                       disabled={isSaving}
-                      className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                      className="w-full px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed relative"
                       aria-label={
                         isSaving ? "Creating live URL" : "Make data live"
                       }
@@ -277,79 +277,70 @@ const JsonGeneratorApp: React.FC = () => {
                       )}
                     </motion.button>
 
-                    {/* Info Icon with Tooltip */}
-                    <div className="relative group">
-                      <motion.button
-                        whileHover={{ scale: 1.1 }}
-                        whileTap={{ scale: 0.9 }}
-                        className={`p-2 rounded-full border-2 ${
-                          isDark
-                            ? "border-purple-500 text-purple-400 hover:bg-purple-500/10"
-                            : "border-purple-500 text-purple-600 hover:bg-purple-50"
-                        } transition-colors z-10`}
-                        aria-label="Information about live URL"
-                        type="button"
-                      >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                          xmlns="http://www.w3.org/2000/svg"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                      </motion.button>
-
-                      {/* Tooltip */}
-                      <div
-                        className={`absolute bottom-full right-0 mb-2 w-72 p-4 rounded-xl shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2 z-50 ${
-                          isDark
-                            ? "bg-gray-800 border border-gray-700 text-gray-200"
-                            : "bg-white border border-gray-200 text-gray-700"
-                        }`}
-                        role="tooltip"
-                      >
-                        <div className="space-y-2">
-                          <h4 className="font-semibold text-sm flex items-center gap-2">
-                            <Link2 className="w-4 h-4 text-purple-500" />
-                            What is Live URL?
-                          </h4>
-                          <p className="text-xs leading-relaxed">
-                            Creates a public API endpoint that serves your
-                            generated JSON data. Perfect for:
-                          </p>
-                          <ul className="text-xs space-y-1 list-disc list-inside">
-                            <li>Testing frontend applications</li>
-                            <li>Prototyping without a backend</li>
-                            <li>Sharing mock data with your team</li>
-                            <li>Quick API demonstrations</li>
-                          </ul>
-                          <p
-                            className={`text-xs pt-2 border-t ${
-                              isDark ? "border-gray-700" : "border-gray-200"
-                            }`}
+                    {/* Info Icon with Tooltip - Separate hover group */}
+                    {!isSaving && (
+                      <div className="absolute top-2 right-2 group/info">
+                        <span className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm hover:bg-white/30 transition-colors cursor-help">
+                          <svg
+                            className="w-3.5 h-3.5 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                            xmlns="http://www.w3.org/2000/svg"
                           >
-                            <strong>Note:</strong> URL expires in 7 days or
-                            after 3 days of inactivity.
-                          </p>
-                        </div>
+                            <path
+                              fillRule="evenodd"
+                              d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </span>
 
-                        {/* Arrow pointer */}
+                        {/* Tooltip - only shows when hovering over info icon */}
                         <div
-                          className={`absolute top-full right-4 w-3 h-3 transform rotate-45 -mt-1.5 ${
+                          className={`absolute bottom-full right-0 mb-3 w-72 p-4 rounded-xl shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-300 transform group-hover/info:translate-y-0 translate-y-2 pointer-events-none ${
                             isDark
-                              ? "bg-gray-800 border-r border-b border-gray-700"
-                              : "bg-white border-r border-b border-gray-200"
+                              ? "bg-gray-800 border border-gray-700 text-gray-200"
+                              : "bg-white border border-gray-200 text-gray-700"
                           }`}
-                        ></div>
+                          style={{ zIndex: 9999 }}
+                          role="tooltip"
+                        >
+                          <div className="space-y-2">
+                            <h4 className="font-semibold text-sm flex items-center gap-2">
+                              <Link2 className="w-4 h-4 text-purple-500" />
+                              What is Live URL?
+                            </h4>
+                            <p className="text-xs leading-relaxed">
+                              Creates a public API endpoint that serves your
+                              generated JSON data. Perfect for:
+                            </p>
+                            <ul className="text-xs space-y-1 list-disc list-inside">
+                              <li>Testing frontend applications</li>
+                              <li>Prototyping without a backend</li>
+                              <li>Sharing mock data with your team</li>
+                              <li>Quick API demonstrations</li>
+                            </ul>
+                            <p
+                              className={`text-xs pt-2 border-t ${
+                                isDark ? "border-gray-700" : "border-gray-200"
+                              }`}
+                            >
+                              <strong>Note:</strong> URL expires in 7 days or
+                              after 3 days of inactivity.
+                            </p>
+                          </div>
+
+                          {/* Arrow pointer */}
+                          <div
+                            className={`absolute top-full right-4 w-3 h-3 transform rotate-45 -mt-1.5 ${
+                              isDark
+                                ? "bg-gray-800 border-r border-b border-gray-700"
+                                : "bg-white border-r border-b border-gray-200"
+                            }`}
+                          ></div>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
 
@@ -369,6 +360,7 @@ const JsonGeneratorApp: React.FC = () => {
 
                     <div className="flex gap-2 items-center">
                       <input
+                        disabled={isGenerating}
                         id="api-url-input"
                         value={apiUrl}
                         readOnly
