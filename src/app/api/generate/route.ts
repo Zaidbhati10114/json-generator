@@ -2,48 +2,77 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-import { rateLimiter } from "@/lib/rate-limiter";
+
+import { aj } from "@/lib/arcjet";
+import { tokenBucket, shield, detectBot } from "@arcjet/next";
+
+// 🔹 Gemini runtime helpers
+import { maybeCheckGeminiModels } from "@/lib/gemini/maybeCheckModels";
+import { getFallbackGeminiModel } from "@/lib/gemini/getFallbackModel";
+import { markGeminiModelFailed } from "@/lib/gemini/markModelFailed";
+import { getActiveGeminiModel } from "@/lib/gemini/getActiveGeminiModel";
 
 const google = createGoogleGenerativeAI();
 
-function getClientIdentifier(request: NextRequest): string {
-    // Try to get user ID from session/auth if available
-    // For now, use IP address as identifier
-    const forwarded = request.headers.get("x-forwarded-for");
-    const ip = forwarded ? forwarded.split(",")[0] :
-        request.headers.get("x-real-ip") ||
-        "unknown";
-    return ip;
-}
-
 export async function POST(request: NextRequest) {
+    // 🔁 STEP 2: free-tier lazy model check (non-blocking)
+    void maybeCheckGeminiModels();
+
     try {
-        // Get client identifier
-        const clientId = getClientIdentifier(request);
+        // 🛡️ Arcjet protection
+        const decision = await aj
+            .withRule(
+                tokenBucket({
+                    mode: "LIVE",
+                    refillRate: 2,
+                    interval: 60,
+                    capacity: 3,
+                })
+            )
+            .withRule(
+                detectBot({
+                    mode: "LIVE",
+                    allow: [],
+                })
+            )
+            .withRule(
+                shield({
+                    mode: "LIVE",
+                })
+            )
+            .protect(request, { requested: 1 });
 
-        // Check rate limit
-        const { allowed, remaining, resetTime } = rateLimiter.check(clientId);
+        // @ts-ignore
+        const remaining = decision.reason.remaining || 0;
+        // @ts-ignore
+        const resetTime = decision.reason.resetTime || Date.now() + 60000;
+        const country = decision.ip.countryName || "Unknown";
 
-        if (!allowed) {
+        if (decision.isDenied()) {
             const waitTime = Math.ceil((resetTime - Date.now()) / 1000);
+
+            let errorMessage = "Request denied";
+            if (decision.reason.isRateLimit()) {
+                errorMessage = "Rate limit exceeded. Please try again later.";
+            } else if (decision.reason.isBot()) {
+                errorMessage = "Bot detected. This service is for human use only.";
+            } else if (decision.reason.isShield()) {
+                errorMessage = "Request blocked for security reasons.";
+            }
+
             return NextResponse.json(
                 {
-                    error: "Rate limit exceeded. Please try again in a minute.",
+                    error: errorMessage,
                     retryAfter: waitTime,
-                    resetTime: new Date(resetTime).toISOString()
+                    resetTime: new Date(resetTime).toISOString(),
+                    remainingTokens: Number(remaining),
+                    country,
                 },
-                {
-                    status: 429,
-                    headers: {
-                        "X-RateLimit-Limit": "3",
-                        "X-RateLimit-Remaining": "0",
-                        "X-RateLimit-Reset": resetTime.toString(),
-                        "Retry-After": waitTime.toString()
-                    }
-                }
+                { status: 429 }
             );
         }
 
+        // 📥 Parse request
         const { prompt } = await request.json();
 
         if (!prompt?.trim()) {
@@ -53,46 +82,75 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        console.log("⚙️ Generating text from Gemini for prompt:", prompt);
+        console.log("⚙️ Generating text from Gemini");
 
-        const { text } = await generateText({
-            model: google("gemini-2.0-flash"),
-            system: "You are a helpful assistant that returns only valid JSON data without any explanations.",
-            prompt: `Output JSON only. ${prompt}`,
-        });
+        // ============================
+        // 🧠 STEP 3: SAFE + SELF-HEALING
+        // ============================
 
-        // 🧹 Clean up markdown-style code fences
-        const cleanedText = text
-            .replace(/```json|```/gi, "") // remove code fences
-            .trim();
+        let modelName = await getActiveGeminiModel();
+        let text: string;
 
-        // Try parsing cleaned text into JSON
+        try {
+            // 🟢 Try active model
+            const result = await generateText({
+                model: google(modelName),
+                system:
+                    "You are a helpful assistant that returns only valid JSON data without explanations.",
+                prompt: `Output JSON only. ${prompt}`,
+            });
+
+            text = result.text;
+        } catch (err) {
+            console.error("❌ Active Gemini model failed:", modelName);
+
+            // 🔴 Mark active model as failed
+            await markGeminiModelFailed(modelName);
+
+            // 🔄 Fallback immediately
+            const fallbackModel = await getFallbackGeminiModel();
+
+            const result = await generateText({
+                model: google(fallbackModel),
+                system:
+                    "You are a helpful assistant that returns only valid JSON data without explanations.",
+                prompt: `Output JSON only. ${prompt}`,
+            });
+
+            text = result.text;
+        }
+
+        // 🧹 Clean markdown fences
+        const cleanedText = text.replace(/```json|```/gi, "").trim();
+
         let parsedData;
         try {
             parsedData = JSON.parse(cleanedText);
         } catch {
-            parsedData = { raw_output: cleanedText }; // fallback if still not valid
+            parsedData = { raw_output: cleanedText };
         }
 
         return NextResponse.json(
             {
                 generatedData: parsedData,
                 rawText: cleanedText,
+                remainingTokens: Number(remaining),
+                resetTime: new Date(resetTime).toISOString(),
+                country,
             },
             {
                 headers: {
-                    "X-RateLimit-Limit": "3",
+                    "X-RateLimit-Limit": "5",
                     "X-RateLimit-Remaining": remaining.toString(),
-                    "X-RateLimit-Reset": resetTime.toString()
-                }
+                    "X-RateLimit-Reset": resetTime.toString(),
+                },
             }
         );
     } catch (error) {
         console.error("❌ Error generating text:", error);
-        const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
-        return NextResponse.json(
-            { error: errorMessage },
-            { status: 500 }
-        );
+        const errorMessage =
+            error instanceof Error ? error.message : "Internal Server Error";
+
+        return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 }
