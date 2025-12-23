@@ -7,6 +7,7 @@ interface PromptInputProps {
   isDark: boolean;
   textSecondary: string;
   textPrimary: string;
+  isLoading: boolean;
 }
 
 const PromptInput: React.FC<PromptInputProps> = ({
@@ -15,6 +16,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
   isDark,
   textSecondary,
   textPrimary,
+  isLoading,
 }) => {
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
     setPrompt(e.target.value);
@@ -29,6 +31,7 @@ const PromptInput: React.FC<PromptInputProps> = ({
         Describe your data
       </label>
       <textarea
+        disabled={isLoading}
         id="prompt-input"
         value={prompt}
         onChange={handleChange}

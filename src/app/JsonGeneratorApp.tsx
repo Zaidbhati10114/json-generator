@@ -138,6 +138,7 @@ const JsonGeneratorApp: React.FC = () => {
             <QuickTemplates setPrompt={setPrompt} isDark={isDark} />
 
             <PromptInput
+              isLoading={isGenerating}
               prompt={prompt}
               setPrompt={setPrompt}
               isDark={isDark}
