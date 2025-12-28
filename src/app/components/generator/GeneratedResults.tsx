@@ -1,9 +1,9 @@
 "use client";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
-import JsonPreview from "./JsonPreview";
 import CreateApiUrl from "./CreateApiUrl";
 import { Dispatch, SetStateAction } from "react";
+import JsonPreview from "./JsonPreview";
 
 interface GeneratedResultsProps {
   isDark: boolean;
