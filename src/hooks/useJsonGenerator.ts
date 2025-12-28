@@ -1,181 +1,99 @@
-import { useCallback, useRef, useState } from "react";
-import { GenerateApiResponse, GeneratedData, LiveApiResponse } from "../../types";
-import { toast } from "sonner";
-import { trackEvent, captureException } from "@/lib/logrocket";
-import { getPromptCategory } from "@/lib/utils";
+import { useState, useCallback, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useGenerateData, JSON_GENERATOR_KEYS } from "./queries/useGenerateData";
+import { useCreateLiveUrl } from "./queries/useCreateLiveUrl";
+import { GeneratedData } from "../../types";
+
 
 export const useJsonGenerator = () => {
+    const queryClient = useQueryClient();
     const [prompt, setPrompt] = useState("");
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [generatedData, setGeneratedData] = useState<GeneratedData | null>(null);
     const [apiUrl, setApiUrl] = useState("");
-    const [isSaving, setIsSaving] = useState<boolean>(false);
+    const [showConfetti, setShowConfetti] = useState(false);
     const abortControllerRef = useRef<AbortController | null>(null);
-    const [showConfetti, setShowConfetti] = useState<boolean>(false);
-    const [copied, setCopied] = useState<boolean>(false);
+
+    // Mutations
+    const generateMutation = useGenerateData();
+    const createLiveUrlMutation = useCreateLiveUrl();
+
+    // Get cached generated data
+    const generatedData = queryClient.getQueryData<GeneratedData>(
+        JSON_GENERATOR_KEYS.generatedData()
+    );
 
     const handleGenerate = useCallback(async (): Promise<void> => {
+        if (!prompt.trim()) {
+            return;
+        }
+
+        // Abort previous request
         if (abortControllerRef.current) {
             abortControllerRef.current.abort();
         }
 
         abortControllerRef.current = new AbortController();
 
-        if (!prompt.trim()) {
-            toast.error("Please enter a prompt");
-            return;
-        }
-
-        // Track event with logrocket
-        trackEvent("data_generation_started", {
-            promptLength: prompt.length,
-            category: getPromptCategory(prompt),
-        });
-
-        setIsGenerating(true);
-        setGeneratedData(null);
+        // Clear previous URL
         setApiUrl("");
 
-        try {
-            const response = await fetch("/api/generate", {
-                signal: abortControllerRef.current.signal,
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prompt }),
-            });
-
-            // Parse response
-            const json: GenerateApiResponse = await response.json();
-
-            // Handle rate limit error (429)
-            if (response.status === 429) {
-                const retryAfter = json.retryAfter || 60;
-                toast.error(
-                    `Rate limit exceeded! You can only make 3 requests per minute. Please try again in ${retryAfter} seconds.`,
-                    { duration: 5000 }
-                );
-
-                trackEvent("data_generation_rate_limited", {
-                    retryAfter,
-                });
-                return;
-            }
-
-            if (!response.ok) {
-                throw new Error(json.error || "Failed to generate data");
-            }
-
-            // Validate that we got data
-            if (!json.generatedData) {
-                throw new Error("No data received from API");
-            }
-
-            setGeneratedData(json.generatedData);
-            toast.success("Data generated successfully!");
-            trackEvent("data_generation_success", {
-                dataSize: JSON.stringify(json.generatedData).length,
-            });
-        } catch (error: any) {
-            if (error.name === "AbortError") return;
-            console.error("Generation error:", error);
-
-            if (error instanceof Error) {
-                captureException(error, {
-                    context: "data_generation",
-                    prompt: prompt.slice(0, 100), // First 100 chars only
-                });
-                toast.error(error.message);
-            } else {
-                toast.error("Error generating data. Please try again.");
-            }
-            // track failure
-            trackEvent("data_generation_failed", {
-                error: error instanceof Error ? error.message : "Unknown error",
-            });
-        } finally {
-            setIsGenerating(false);
-        }
-    }, [prompt]);
+        generateMutation.mutate({
+            prompt,
+            signal: abortControllerRef.current.signal,
+        });
+    }, [prompt, generateMutation]);
 
     const handleCreateUrl = useCallback(async (): Promise<void> => {
         if (!generatedData) {
-            toast.error("No data to create URL for");
             return;
         }
 
-        trackEvent("live_url_creation_started");
+        const result = await createLiveUrlMutation.mutateAsync({
+            data: generatedData,
+            prompt,
+        });
 
-        setIsSaving(true);
-
-        try {
-            const response = await fetch("/api/live", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    data: generatedData,
-                    prompt,
-                }),
-            });
-
-            const json: LiveApiResponse = await response.json();
-
-            if (!response.ok) {
-                throw new Error(json.error || "Failed to create live URL");
-            }
-
-            if (!json.apiUrl) {
-                throw new Error("No URL received from API");
-            }
-
-            setApiUrl(json.apiUrl);
+        if (result?.apiUrl) {
+            setApiUrl(result.apiUrl);
             setShowConfetti(true);
-            toast.success("Live URL created!");
-
-            // Track success
-            trackEvent("live_url_creation_success", {
-                urlId: json.id,
-                dataSize: JSON.stringify(generatedData).length,
-            });
-
-            // Hide confetti after 4 seconds
             setTimeout(() => setShowConfetti(false), 4000);
-        } catch (error) {
-            console.error("URL creation error:", error);
-
-            if (error instanceof Error) {
-                captureException(error, {
-                    context: "url_creation",
-                });
-                toast.error(error.message);
-            } else {
-                toast.error("Error creating live URL. Please try again.");
-            }
-            // Track failure
-            trackEvent("live_url_creation_failed", {
-                error: error instanceof Error ? error.message : "Unknown error",
-            });
-        } finally {
-            setIsSaving(false);
         }
-    }, [generatedData, prompt]);
+    }, [generatedData, prompt, createLiveUrlMutation]);
 
     const handleClear = useCallback((): void => {
+        // Abort ongoing request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        // Clear state
         setPrompt("");
-        setGeneratedData(null);
         setApiUrl("");
-        setIsGenerating(false);
-        setIsSaving(false);
-        setCopied(false);
-    }, []);
+        setShowConfetti(false);
+
+        // Clear cache
+        queryClient.setQueryData(JSON_GENERATOR_KEYS.generatedData(), null);
+        queryClient.removeQueries({ queryKey: JSON_GENERATOR_KEYS.liveUrl() });
+    }, [queryClient]);
 
     return {
+        // State
         prompt,
         setPrompt,
-        isGenerating,
         generatedData,
         apiUrl,
+        showConfetti,
+
+        // Loading states
+        isGenerating: generateMutation.isPending,
+        isSaving: createLiveUrlMutation.isPending,
+
+        // Actions
         handleGenerate,
         handleCreateUrl,
         handleClear,
+
+        // Mutation objects (for advanced usage)
+        generateMutation,
+        createLiveUrlMutation,
     };
 };

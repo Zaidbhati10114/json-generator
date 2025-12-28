@@ -5,6 +5,7 @@ import { ThemeProvider } from "./components/context/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 import { LogRocketProvider } from "./components/providers/LogRocketProvider";
 import { ThemeScript } from "./components/context/ThemeScript";
+import { Providers } from "./react-query/Providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,7 +49,9 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <LogRocketProvider>
-          <ThemeProvider>{children}</ThemeProvider>
+          <ThemeProvider>
+            <Providers>{children}</Providers>
+          </ThemeProvider>
           <Toaster />
         </LogRocketProvider>
       </body>
