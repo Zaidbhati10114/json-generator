@@ -1,6 +1,5 @@
 // app/api/cron/check-models/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { verifySignatureAppRouter } from "@upstash/qstash/nextjs";
 import { getDb } from "@/lib/mongodb";
 import { testGeminiModel } from "@/lib/gemini/testModel";
 
@@ -57,7 +56,7 @@ async function handler(request: NextRequest) {
             (m) =>
                 m.startsWith("gemini") &&
                 (m.includes("flash") || m.includes("pro")) &&
-                !m.includes("vision") // Exclude vision-only models
+                !m.includes("vision")
         );
 
         const newModels: string[] = [];
@@ -155,10 +154,60 @@ async function handler(request: NextRequest) {
     }
 }
 
-// Wrap with QStash signature verification
-export const POST = verifySignatureAppRouter(handler);
+// POST with QStash verification (runtime only)
+export async function POST(request: NextRequest) {
+    // Verify QStash signature at runtime
+    const signature = request.headers.get("upstash-signature");
 
-// Also allow GET for manual testing (with secret)
+    if (!signature) {
+        // Allow requests with secret for manual testing
+        const body = await request.json();
+        if (body?.secret !== process.env.CRON_SECRET) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
+        return handler(request);
+    }
+
+    // Verify QStash signature
+    try {
+        const { Receiver } = await import("@upstash/qstash");
+
+        const receiver = new Receiver({
+            currentSigningKey: process.env.QSTASH_CURRENT_SIGNING_KEY!,
+            nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY!,
+        });
+
+        const body = await request.text();
+        const isValid = await receiver.verify({
+            signature,
+            body,
+        });
+
+        if (!isValid) {
+            return NextResponse.json(
+                { error: "Invalid signature" },
+                { status: 401 }
+            );
+        }
+
+        // Create a new request with the body for the handler
+        const newRequest = new NextRequest(request.url, {
+            method: request.method,
+            headers: request.headers,
+            body,
+        });
+
+        return handler(newRequest);
+    } catch (error) {
+        console.error("Signature verification failed:", error);
+        return NextResponse.json(
+            { error: "Signature verification failed" },
+            { status: 401 }
+        );
+    }
+}
+
+// GET for manual testing with secret
 export async function GET(request: NextRequest) {
     const secret = request.nextUrl.searchParams.get("secret");
 
