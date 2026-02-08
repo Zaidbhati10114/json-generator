@@ -32,7 +32,7 @@ export async function generateWithFallback(
                 system:
                     "You are a helpful assistant that returns only valid JSON data without explanations.",
                 prompt: `Output JSON only. ${prompt}`,
-                maxTokens: 1000,
+                
             });
 
             console.log(`✅ Success with: ${modelName}`);
