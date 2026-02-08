@@ -9,7 +9,6 @@ async function handler(request: NextRequest) {
 
         const db = await getDb();
 
-        // Check last run time to prevent duplicate runs
         const state = await db.collection("app_state").findOne({
             key: "gemini_model_check",
         });
@@ -19,7 +18,7 @@ async function handler(request: NextRequest) {
             ? new Date(state.lastCheckedAt).getTime()
             : 0;
 
-        const MIN_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours minimum
+        const MIN_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours
 
         if (now - lastChecked < MIN_INTERVAL) {
             console.log("⏭️ [CRON] Skipping - checked recently");
@@ -32,32 +31,54 @@ async function handler(request: NextRequest) {
             });
         }
 
-        // 🔒 Update timestamp first (prevent race conditions)
         await db.collection("app_state").updateOne(
             { key: "gemini_model_check" },
             { $set: { lastCheckedAt: new Date() } },
             { upsert: true }
         );
 
-        // Fetch available models from Google
+        console.log("📡 Fetching models from Google API...");
         const res = await fetch(
-            `https://generativelanguage.googleapis.com/v1beta/models?key=${process.env.GOOGLE_API_KEY}`
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            {
+                headers: {
+                    "x-goog-api-key": process.env.GOOGLE_API_KEY!,
+                },
+            }
         );
 
         if (!res.ok) {
-            throw new Error(`Google API error: ${res.status}`);
+            const errorText = await res.text();
+            console.error("Google API error response:", errorText);
+            throw new Error(`Google API error: ${res.status} - ${errorText}`);
         }
 
         const data = await res.json();
-        const models: string[] =
-            data.models?.map((m: any) => m.name.replace("models/", "")) ?? [];
+        console.log(`📊 Found ${data.models?.length || 0} total models from Google`);
 
-        const geminiModels = models.filter(
-            (m) =>
-                m.startsWith("gemini") &&
-                (m.includes("flash") || m.includes("pro")) &&
-                !m.includes("vision")
-        );
+        // ✅ SMART FILTERING: Only models that support generateContent
+        const geminiModels = data.models
+            .filter((m: any) => {
+                const name = m.name.replace("models/", "");
+                const supported = m.supportedGenerationMethods || [];
+
+                return (
+                    name.startsWith("gemini") &&
+                    (name.includes("flash") || name.includes("pro")) &&
+                    !name.includes("vision") &&
+                    !name.includes("image") &&
+                    !name.includes("audio") &&
+                    !name.includes("tts") &&
+                    !name.includes("computer-use") &&
+                    !name.includes("robotics") &&
+                    !name.includes("deep-research") &&
+                    !name.includes("embedding") &&
+                    supported.includes("generateContent")
+                );
+            })
+            .map((m: any) => m.name.replace("models/", ""));
+
+        console.log(`🎯 Filtered to ${geminiModels.length} working Gemini models:`, geminiModels);
 
         const newModels: string[] = [];
         const testedModels: Array<{ model: string; passed: boolean }> = [];
@@ -69,7 +90,10 @@ async function handler(request: NextRequest) {
                 model,
             });
 
-            if (exists) continue;
+            if (exists) {
+                console.log(`⏭️  Skipping existing model: ${model}`);
+                continue;
+            }
 
             newModels.push(model);
             console.log(`🧪 [CRON] Testing new model: ${model}`);
@@ -91,7 +115,6 @@ async function handler(request: NextRequest) {
                 console.log(`✅ [CRON] New working model found: ${model}`);
                 promotedModel = model;
 
-                // Demote old active models
                 await db.collection("ai_models").updateMany(
                     {
                         provider: "gemini",
@@ -101,17 +124,17 @@ async function handler(request: NextRequest) {
                     { $set: { status: "deprecated" } }
                 );
 
-                // Log the change
                 await db.collection("model_changes").insertOne({
                     oldModel: state?.currentActiveModel || "unknown",
                     newModel: model,
                     changedAt: new Date(),
                     reason: "New model auto-promoted",
                 });
+            } else {
+                console.log(`❌ [CRON] Model failed tests: ${model}`);
             }
         }
 
-        // Get current active model
         const activeModel = await db.collection("ai_models").findOne({
             provider: "gemini",
             status: "active",
@@ -154,13 +177,10 @@ async function handler(request: NextRequest) {
     }
 }
 
-// POST with QStash verification (runtime only)
 export async function POST(request: NextRequest) {
-    // Verify QStash signature at runtime
     const signature = request.headers.get("upstash-signature");
 
     if (!signature) {
-        // Allow requests with secret for manual testing
         const body = await request.json();
         if (body?.secret !== process.env.CRON_SECRET) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -168,7 +188,6 @@ export async function POST(request: NextRequest) {
         return handler(request);
     }
 
-    // Verify QStash signature
     try {
         const { Receiver } = await import("@upstash/qstash");
 
@@ -184,13 +203,9 @@ export async function POST(request: NextRequest) {
         });
 
         if (!isValid) {
-            return NextResponse.json(
-                { error: "Invalid signature" },
-                { status: 401 }
-            );
+            return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
         }
 
-        // Create a new request with the body for the handler
         const newRequest = new NextRequest(request.url, {
             method: request.method,
             headers: request.headers,
@@ -207,7 +222,6 @@ export async function POST(request: NextRequest) {
     }
 }
 
-// GET for manual testing with secret
 export async function GET(request: NextRequest) {
     const secret = request.nextUrl.searchParams.get("secret");
 

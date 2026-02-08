@@ -1,12 +1,9 @@
 // lib/gemini/modelFallback.ts
-import { generateText } from "ai";
 
 const GEMINI_MODELS = [
-    process.env.GEMINI_PRIMARY_MODEL || "gemini-2.0-flash-exp",
-    "gemini-1.5-flash-002",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro-002",
-    "gemini-1.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-flash-latest",
 ];
 
 interface GenerationResult {
@@ -16,8 +13,7 @@ interface GenerationResult {
 }
 
 export async function generateWithFallback(
-    google: any,
-    prompt: string
+    userPrompt: string
 ): Promise<GenerationResult> {
     let lastError: any;
     const attemptedModels: string[] = [];
@@ -27,25 +23,56 @@ export async function generateWithFallback(
             console.log(`🔄 Trying model: ${modelName}`);
             attemptedModels.push(modelName);
 
-            const result = await generateText({
-                model: google(modelName),
-                system:
-                    "You are a helpful assistant that returns only valid JSON data without explanations.",
-                prompt: `Output JSON only. ${prompt}`,
-                maxOutputTokens: 1000,
-            });
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${process.env.GOOGLE_GENERATIVE_AI_API_KEY}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                parts: [
+                                    {
+                                        text: `${userPrompt}\n\nIMPORTANT: Return ONLY valid JSON. No markdown code blocks, no explanations.`
+                                    }
+                                ]
+                            }
+                        ],
+                        generationConfig: {
+                            temperature: 0.7,
+                            maxOutputTokens: 1000,
+                            responseMimeType: "application/json", // ✅ Force JSON output
+                        }
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                const errorData = await response.text();
+                console.error(`API error for ${modelName}:`, errorData);
+                throw new Error(`API error: ${response.status} - ${errorData}`);
+            }
+
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+            if (!text) {
+                throw new Error("Empty response from API");
+            }
 
             console.log(`✅ Success with: ${modelName}`);
+            console.log(`📄 Response preview: ${text.substring(0, 100)}...`);
 
             return {
-                text: result.text,
+                text,
                 modelUsed: modelName,
                 attemptedModels,
             };
         } catch (err: any) {
             console.error(`❌ Model ${modelName} failed:`, err.message);
             lastError = err;
-            // Continue to next model
         }
     }
 

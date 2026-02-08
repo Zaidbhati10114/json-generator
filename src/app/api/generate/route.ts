@@ -84,7 +84,6 @@ export async function POST(request: NextRequest) {
 
         // 🚀 Fast generation with automatic fallback (NO DB CALLS!)
         const { text, modelUsed, attemptedModels } = await generateWithFallback(
-            google,
             prompt
         );
 
