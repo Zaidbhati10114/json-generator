@@ -42,7 +42,7 @@ export async function generateWithFallback(
                         ],
                         generationConfig: {
                             temperature: 0.7,
-                            maxOutputTokens: 1000,
+                            maxOutputTokens: 4096,
                             responseMimeType: "application/json", // ✅ Force JSON output
                         }
                     }),
