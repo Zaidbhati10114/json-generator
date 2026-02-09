@@ -13,6 +13,6 @@ export async function testGeminiModel(model: string): Promise<boolean> {
         JSON.parse(text.replace(/```json|```/g, ""));
         return true;
     } catch {
-        return false;
+        return false
     }
 }
