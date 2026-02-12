@@ -26,7 +26,7 @@ const prompts = [
 ];
 
 export default function () {
-  const url = "http://localhost:3000/api/generate";
+  const url = "https://json-generator-mu.vercel.app/api/generate";
 
   const payload = JSON.stringify({
     prompt: prompts[Math.floor(Math.random() * prompts.length)],

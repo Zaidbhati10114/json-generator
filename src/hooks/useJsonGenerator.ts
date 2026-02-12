@@ -38,7 +38,7 @@ export const useJsonGenerator = () => {
 
         generateMutation.mutate({
             prompt,
-            signal: abortControllerRef.current.signal,
+            //signal: abortControllerRef.current.signal,
         });
     }, [prompt, generateMutation]);
 
