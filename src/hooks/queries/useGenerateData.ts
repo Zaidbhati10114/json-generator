@@ -33,17 +33,28 @@ async function generateDataAsync(prompt: string): Promise<GeneratedData> {
 
     const { jobId } = await createRes.json();
 
-    // 2️⃣ Poll job status
+    /**
+     * 🚀 2️⃣ INSTANT WORKER TRIGGER
+     * This makes generation start immediately for the user
+     * Cron worker becomes only a backup.
+     */
+    fetch("/api/worker?secret=" + process.env.NEXT_PUBLIC_WORKER_SECRET)
+        .catch(() => {
+            // ignore errors, cron worker will handle if this fails
+        });
+
+    // 3️⃣ Poll job status
     const startTime = Date.now();
-    const TIMEOUT = 120000; // 2 min timeout
+    const TIMEOUT = 120000; // 2 minutes timeout
+
+    const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
     while (true) {
-        // timeout protection
         if (Date.now() - startTime > TIMEOUT) {
             throw new Error("Generation timed out. Please try again.");
         }
 
-        await sleep(2000); // poll every 2 sec
+        await sleep(2000);
 
         const statusRes = await fetch(`/api/job-status?id=${jobId}`);
         if (!statusRes.ok) continue;
@@ -57,10 +68,9 @@ async function generateDataAsync(prompt: string): Promise<GeneratedData> {
         if (job.status === "failed") {
             throw new Error(job.error || "Generation failed");
         }
-
-        // if pending/processing → continue polling
     }
 }
+
 
 export const useGenerateData = () => {
     const queryClient = useQueryClient();
