@@ -9,13 +9,17 @@ import { getPendingJobs, markJobCompleted, markJobFailed, markJobProcessing } fr
  * Only UptimeRobot / you should call this
  */
 function isAuthorized(request: NextRequest) {
-    const header = request.headers.get("x-worker-secret");
+    const headerSecret = request.headers.get("x-worker-secret");
+    const querySecret = request.nextUrl.searchParams.get("secret");
+
+    const secret = process.env.LOAD_TEST_SECRET;
+
     return (
-        header &&
-        process.env.LOAD_TEST_SECRET &&
-        header === process.env.LOAD_TEST_SECRET
+        (headerSecret && headerSecret === secret) ||
+        (querySecret && querySecret === secret)
     );
 }
+
 
 export async function GET(request: NextRequest) {
     try {
