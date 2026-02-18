@@ -1,39 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
-import { enhancePrompt } from "@/lib/gemini/promptEnhancer";
-import { generateWithFallback } from "@/lib/gemini/modelFallback";
 import { getPendingJobs, markJobCompleted, markJobFailed, markJobProcessing } from "@/lib/mongodb/jobs";
-
+import { generateStructuredData } from "@/lib/ai/aiProvider";
 
 /**
  * 🔐 Protect worker endpoint
- * Only UptimeRobot / you should call this
+ * Only authorized requests should call this endpoint
  */
-function isAuthorized(request: NextRequest) {
+function isAuthorized(request: NextRequest): boolean {
     const headerSecret = request.headers.get("x-worker-secret");
     const querySecret = request.nextUrl.searchParams.get("secret");
-
     const secret = process.env.LOAD_TEST_SECRET;
 
-    return (
-        (headerSecret && headerSecret === secret) ||
-        (querySecret && querySecret === secret)
-    );
-}
+    // Ensure secret is configured
+    if (!secret) {
+        console.error("⚠️  LOAD_TEST_SECRET environment variable is not set!");
+        return false;
+    }
 
+    // Explicitly check each condition
+    if (headerSecret && headerSecret === secret) {
+        return true;
+    }
+
+    if (querySecret && querySecret === secret) {
+        return true;
+    }
+
+    console.warn("🚫 Unauthorized access attempt detected");
+    return false;
+}
 
 export async function GET(request: NextRequest) {
     try {
+        // 🔐 Check authorization first
         if (!isAuthorized(request)) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+            return NextResponse.json(
+                { error: "Unauthorized", message: "Invalid or missing secret" },
+                { status: 401 }
+            );
         }
 
         console.log("👷 Worker started...");
 
-        /**
-         * ⏳ Fetch pending jobs from queue
-         * We process small batches to avoid timeouts
-         */
-        const jobs = await getPendingJobs(3); // process 3 per run
+        const jobs = await getPendingJobs(20);
 
         if (!jobs.length) {
             return NextResponse.json({
@@ -41,61 +50,59 @@ export async function GET(request: NextRequest) {
             });
         }
 
-        console.log(`Found ${jobs.length} pending jobs`);
+        console.log(`📦 Found ${jobs.length} pending jobs`);
 
-        /**
-         * 🔁 Process each job
-         */
+        const results = {
+            successful: 0,
+            failed: 0,
+            details: [] as any[]
+        };
+
         for (const job of jobs) {
             const jobId = job._id.toString();
 
             try {
-                console.log("Processing job:", jobId);
+                console.log(`⚙️  Processing job: ${jobId}`);
+                console.log(`📝 Prompt: "${job.prompt}"`);
 
                 await markJobProcessing(jobId);
 
-                /**
-                 * ✨ Enhance prompt
-                 */
-                const { enhanced } = await enhancePrompt(job.prompt);
+                // Generate - count is auto-detected from prompt
+                const { text: parsedData, modelUsed, metadata } = await generateStructuredData(job.prompt);
 
-                /**
-                 * 🤖 Generate JSON via Gemini
-                 */
-                const { text, modelUsed } = await generateWithFallback(enhanced);
-
-                /**
-                 * 🧹 Clean response
-                 */
-                const cleanedText = text.replace(/```json|```/gi, "").trim();
-
-                let parsedData;
-                try {
-                    parsedData = JSON.parse(cleanedText);
-                } catch {
-                    parsedData = { raw_output: cleanedText };
-                }
-
-                /**
-                 * ✅ Save result
-                 */
                 await markJobCompleted(jobId, parsedData, modelUsed);
 
-                console.log("Job completed:", jobId);
+                console.log(`✅ Job completed: ${jobId} (${metadata?.actualCount || 'unknown'} items generated)`);
+                results.successful++;
+                results.details.push({
+                    jobId,
+                    status: "success",
+                    modelUsed,
+                    itemsGenerated: metadata?.actualCount
+                });
+
             } catch (err: any) {
-                console.error("Job failed:", jobId, err.message);
+                console.error(`❌ Job failed: ${jobId}`, err.message);
                 await markJobFailed(jobId, err.message);
+                results.failed++;
+                results.details.push({
+                    jobId,
+                    status: "failed",
+                    error: err.message
+                });
             }
         }
 
         return NextResponse.json({
             success: true,
             processedJobs: jobs.length,
+            ...results
         });
-    } catch (error) {
-        console.error("Worker error:", error);
+
+    } catch (error: any) {
+        console.error("💥 Worker error:", error);
         return NextResponse.json(
-            { error: "Worker failed" },
+            { error: "Worker failed", message: error.message },
             { status: 500 }
         );
     }
