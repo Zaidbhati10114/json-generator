@@ -17,19 +17,60 @@ function isAuthorized(request: NextRequest): boolean {
         return false;
     }
 
-    // Explicitly check each condition
-    if (headerSecret && headerSecret === secret) {
-        return true;
+    // Check if either header or query param matches the secret
+    const isValid = Boolean(
+        (headerSecret && headerSecret === secret) ||
+        (querySecret && querySecret === secret)
+    );
+
+    if (!isValid) {
+        console.warn("🚫 Unauthorized access attempt detected");
     }
 
-    if (querySecret && querySecret === secret) {
-        return true;
-    }
-
-    console.warn("🚫 Unauthorized access attempt detected");
-    return false;
+    return isValid;
 }
 
+/**
+ * 🔨 Process a single job
+ */
+async function processJob(job: any) {
+    const jobId = job._id.toString();
+
+    try {
+        console.log(`⚙️  Processing job: ${jobId}`);
+        console.log(`📝 Prompt: "${job.prompt.substring(0, 80)}..."`);
+
+        await markJobProcessing(jobId);
+
+        // Generate - count is auto-detected from prompt
+        const { text: parsedData, modelUsed, metadata } = await generateStructuredData(job.prompt);
+
+        await markJobCompleted(jobId, parsedData, modelUsed);
+
+        console.log(`✅ Job completed: ${jobId} (${metadata?.actualCount || 'unknown'} items generated)`);
+
+        return {
+            jobId,
+            status: "success",
+            modelUsed,
+            itemsGenerated: metadata?.actualCount
+        };
+
+    } catch (err: any) {
+        console.error(`❌ Job failed: ${jobId}`, err.message);
+        await markJobFailed(jobId, err.message);
+
+        return {
+            jobId,
+            status: "failed",
+            error: err.message
+        };
+    }
+}
+
+/**
+ * 🚀 Main worker endpoint with parallel processing
+ */
 export async function GET(request: NextRequest) {
     try {
         // 🔐 Check authorization first
@@ -58,40 +99,49 @@ export async function GET(request: NextRequest) {
             details: [] as any[]
         };
 
-        for (const job of jobs) {
-            const jobId = job._id.toString();
+        // ⭐ Process jobs in parallel batches
+        const CONCURRENT_JOBS = 5; // Process 5 jobs simultaneously
 
-            try {
-                console.log(`⚙️  Processing job: ${jobId}`);
-                console.log(`📝 Prompt: "${job.prompt}"`);
+        for (let i = 0; i < jobs.length; i += CONCURRENT_JOBS) {
+            const batch = jobs.slice(i, i + CONCURRENT_JOBS);
+            const batchNumber = Math.floor(i / CONCURRENT_JOBS) + 1;
+            const totalBatches = Math.ceil(jobs.length / CONCURRENT_JOBS);
 
-                await markJobProcessing(jobId);
+            console.log(`🔄 Processing batch ${batchNumber}/${totalBatches}: ${batch.length} jobs in parallel`);
 
-                // Generate - count is auto-detected from prompt
-                const { text: parsedData, modelUsed, metadata } = await generateStructuredData(job.prompt);
+            // Process this batch in parallel using Promise.allSettled
+            // (allSettled ensures all jobs complete even if some fail)
+            const batchResults = await Promise.allSettled(
+                batch.map(job => processJob(job))
+            );
 
-                await markJobCompleted(jobId, parsedData, modelUsed);
+            // Collect results from this batch
+            batchResults.forEach((result, index) => {
+                if (result.status === 'fulfilled') {
+                    const jobResult = result.value;
 
-                console.log(`✅ Job completed: ${jobId} (${metadata?.actualCount || 'unknown'} items generated)`);
-                results.successful++;
-                results.details.push({
-                    jobId,
-                    status: "success",
-                    modelUsed,
-                    itemsGenerated: metadata?.actualCount
-                });
+                    if (jobResult.status === 'success') {
+                        results.successful++;
+                    } else {
+                        results.failed++;
+                    }
 
-            } catch (err: any) {
-                console.error(`❌ Job failed: ${jobId}`, err.message);
-                await markJobFailed(jobId, err.message);
-                results.failed++;
-                results.details.push({
-                    jobId,
-                    status: "failed",
-                    error: err.message
-                });
-            }
+                    results.details.push(jobResult);
+                } else {
+                    // Promise was rejected (shouldn't happen with our error handling)
+                    results.failed++;
+                    results.details.push({
+                        jobId: batch[index]._id.toString(),
+                        status: 'failed',
+                        error: result.reason?.message || 'Unknown error'
+                    });
+                }
+            });
+
+            console.log(`✅ Batch ${batchNumber}/${totalBatches} completed`);
         }
+
+        console.log(`🎉 All jobs processed: ${results.successful} successful, ${results.failed} failed`);
 
         return NextResponse.json({
             success: true,

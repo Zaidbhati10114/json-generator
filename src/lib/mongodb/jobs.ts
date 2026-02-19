@@ -1,44 +1,50 @@
-import { getDb } from "@/lib/mongodb";
+
 import { ObjectId } from "mongodb";
+import { getDb } from "../mongodb";
 
 export async function createJob(prompt: string) {
     const db = await getDb();
-
-    const job = {
+    const result = await db.collection("jobs").insertOne({
         prompt,
-        enhancedPrompt: null,
         status: "pending",
-        result: null,
-        error: null,
-        modelUsed: null,
         createdAt: new Date(),
-        startedAt: null,
-        completedAt: null,
-    };
+    });
 
-    const res = await db.collection("jobs").insertOne(job);
-    return res.insertedId.toString();
+    // ⭐ Return the inserted ID as string
+    return result.insertedId.toString();
 }
 
 export async function getJob(jobId: string) {
+    // ⭐ Validate jobId before querying
+    if (!jobId || jobId === 'undefined' || jobId === 'null') {
+        throw new Error('Invalid job ID');
+    }
+
+    // Validate it's a valid ObjectId format
+    if (!ObjectId.isValid(jobId)) {
+        throw new Error('Invalid job ID format');
+    }
+
     const db = await getDb();
     return db.collection("jobs").findOne({ _id: new ObjectId(jobId) });
 }
 
 export async function getPendingJobs(limit = 5) {
     const db = await getDb();
-
     return db
         .collection("jobs")
         .find({ status: "pending" })
-        .sort({ createdAt: 1 })
         .limit(limit)
         .toArray();
 }
 
 export async function markJobProcessing(jobId: string) {
-    const db = await getDb();
+    // ⭐ Validate jobId
+    if (!ObjectId.isValid(jobId)) {
+        throw new Error('Invalid job ID format');
+    }
 
+    const db = await getDb();
     await db.collection("jobs").updateOne(
         { _id: new ObjectId(jobId) },
         {
@@ -50,13 +56,13 @@ export async function markJobProcessing(jobId: string) {
     );
 }
 
-export async function markJobCompleted(
-    jobId: string,
-    result: any,
-    modelUsed: string
-) {
-    const db = await getDb();
+export async function markJobCompleted(jobId: string, result: any, modelUsed: string) {
+    // ⭐ Validate jobId
+    if (!ObjectId.isValid(jobId)) {
+        throw new Error('Invalid job ID format');
+    }
 
+    const db = await getDb();
     await db.collection("jobs").updateOne(
         { _id: new ObjectId(jobId) },
         {
@@ -71,16 +77,37 @@ export async function markJobCompleted(
 }
 
 export async function markJobFailed(jobId: string, error: string) {
-    const db = await getDb();
+    // ⭐ Validate jobId
+    if (!ObjectId.isValid(jobId)) {
+        throw new Error('Invalid job ID format');
+    }
 
+    const db = await getDb();
     await db.collection("jobs").updateOne(
         { _id: new ObjectId(jobId) },
         {
             $set: {
                 status: "failed",
                 error,
-                completedAt: new Date(),
+                failedAt: new Date(),
             },
         }
     );
+}
+
+export async function getJobStatus(jobId: string) {
+    const job = await getJob(jobId);
+
+    if (!job) {
+        return null;
+    }
+
+    return {
+        status: job.status,
+        result: job.result,
+        error: job.error,
+        modelUsed: job.modelUsed,
+        createdAt: job.createdAt,
+        completedAt: job.completedAt,
+    };
 }

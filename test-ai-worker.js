@@ -13,7 +13,9 @@ const testCases = [
 ];
 
 async function runTests() {
-  const BASE_URL = "http://localhost:3000";
+  const BASE_URL =
+    // "https://json-generator-git-test-users-u-dd0707-zaidbhati10114s-projects.vercel.app";
+    "http://localhost:3000";
   const SECRET = process.env.LOAD_TEST_SECRET || "zaid-super-secret-load-test";
 
   console.log(`🌐 Testing against: ${BASE_URL}`);

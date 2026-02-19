@@ -1,19 +1,18 @@
-import { getJob } from "@/lib/mongodb/jobs";
 import { NextRequest, NextResponse } from "next/server";
-
+import { getJobStatus } from "@/lib/mongodb/jobs";
 
 export async function GET(request: NextRequest) {
     try {
         const jobId = request.nextUrl.searchParams.get("id");
 
-        if (!jobId) {
+        if (!jobId || jobId === 'undefined' || jobId === 'null') {
             return NextResponse.json(
-                { error: "Job ID is required" },
+                { error: "Job ID is required and must be valid" },
                 { status: 400 }
             );
         }
 
-        const job = await getJob(jobId);
+        const job = await getJobStatus(jobId);
 
         if (!job) {
             return NextResponse.json(
@@ -22,23 +21,21 @@ export async function GET(request: NextRequest) {
             );
         }
 
-        /**
-         * Return minimal safe data
-         */
-        return NextResponse.json({
-            status: job.status,
-            result: job.result,
-            error: job.error,
-            modelUsed: job.modelUsed,
-            createdAt: job.createdAt,
-            startedAt: job.startedAt,
-            completedAt: job.completedAt,
-        });
-    } catch (error) {
+        return NextResponse.json(job);
+
+    } catch (error: any) {
         console.error("Job status error:", error);
 
+        // Return better error messages
+        if (error.message.includes('Invalid job ID')) {
+            return NextResponse.json(
+                { error: "Invalid job ID format" },
+                { status: 400 }
+            );
+        }
+
         return NextResponse.json(
-            { error: "Failed to fetch job status" },
+            { error: "Failed to get job status", message: error.message },
             { status: 500 }
         );
     }
