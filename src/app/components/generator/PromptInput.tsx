@@ -1,5 +1,5 @@
 // components/generator/PromptInput.tsx
-import React, { ChangeEvent } from "react";
+import React, { ChangeEvent, useEffect, useRef } from "react";
 
 interface PromptInputProps {
   prompt: string;
@@ -18,9 +18,18 @@ const PromptInput: React.FC<PromptInputProps> = ({
   textPrimary,
   isLoading,
 }) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const handleChange = (e: ChangeEvent<HTMLTextAreaElement>): void => {
     setPrompt(e.target.value);
   };
+
+  // Auto-grow textarea as content increases
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+    }
+  }, [prompt]);
 
   return (
     <div className="mb-6">
@@ -31,12 +40,13 @@ const PromptInput: React.FC<PromptInputProps> = ({
         Describe your data
       </label>
       <textarea
+        ref={textareaRef}
         disabled={isLoading}
         id="prompt-input"
         value={prompt}
         onChange={handleChange}
         placeholder="e.g., Generate 10 users with name, email, and age..."
-        className={`w-full px-4 py-3 rounded-xl border ${
+        className={`w-full px-4 py-3 rounded-xl border resize-none overflow-hidden ${
           isDark
             ? "bg-gray-800 border-gray-700 text-white"
             : "bg-white border-gray-300 text-gray-900"
