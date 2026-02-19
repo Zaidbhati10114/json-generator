@@ -29,23 +29,24 @@ function calculateRequestCost(prompt: string): number {
 }
 
 /**
- * 🌐 Get client IP for rate limiting
+ * 🌐 Get client IP for rate limiting (used for dev mode)
  */
 function getClientIp(request: NextRequest): string {
-    const forwarded = request.headers.get('x-forwarded-for');
-    const realIp = request.headers.get('x-real-ip');
-    const cfConnectingIp = request.headers.get('cf-connecting-ip');
+    const headers = [
+        'x-forwarded-for',
+        'x-real-ip',
+        'cf-connecting-ip',
+        'x-client-ip',
+    ];
 
-    if (forwarded) {
-        return forwarded.split(',')[0].trim();
-    }
-
-    if (realIp) {
-        return realIp;
-    }
-
-    if (cfConnectingIp) {
-        return cfConnectingIp;
+    for (const header of headers) {
+        const value = request.headers.get(header);
+        if (value) {
+            const ip = value.split(',')[0].trim();
+            if (ip && ip !== 'unknown') {
+                return ip;
+            }
+        }
     }
 
     return '127.0.0.1';
@@ -69,21 +70,24 @@ function simpleRateLimit(identifier: string, capacity: number, windowMs: number)
 
     if (!current) {
         rateLimitStore.set(identifier, { count: 1, resetAt: now + windowMs });
-        return true; // Allow
+        return true;
     }
 
     if (current.count >= capacity) {
-        return false; // Deny
+        return false;
     }
 
     current.count++;
-    return true; // Allow
+    return true;
 }
 
 export async function POST(request: NextRequest) {
     try {
         const isLoadTest = isLoadTestRequest(request);
 
+        /**
+         * 📥 Parse body first (to calculate cost)
+         */
         const { prompt } = await request.json();
 
         if (!prompt?.trim()) {
@@ -100,19 +104,20 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        /**
+         * 🔒 Rate limiting (skip for load tests)
+         */
         if (!isLoadTest) {
             const requestCost = calculateRequestCost(prompt);
-            const clientIp = getClientIp(request);
-
-            console.log(`🔍 Rate limit check: IP=${clientIp}, Cost=${requestCost}`);
-
-            // Use simple rate limiter for development
             const isDev = process.env.NODE_ENV === 'development';
 
+            console.log(`🔍 Rate limit check: Cost=${requestCost}, Env=${isDev ? 'dev' : 'prod'}`);
+
             if (isDev) {
+                // Development: Use simple in-memory rate limiter
                 console.log(`🧪 Using simple rate limiter (dev mode)`);
 
-                // Allow 15 requests per minute
+                const clientIp = getClientIp(request);
                 const allowed = simpleRateLimit(clientIp, 15, 60000);
 
                 if (!allowed) {
@@ -128,7 +133,7 @@ export async function POST(request: NextRequest) {
 
                 console.log(`✅ Request allowed (simple limiter)`);
             } else {
-                // Use Arcjet in production
+                // Production: Use Arcjet with automatic fingerprinting
                 console.log(`🔒 Using Arcjet (production mode)`);
 
                 try {
@@ -136,18 +141,24 @@ export async function POST(request: NextRequest) {
                         .withRule(
                             tokenBucket({
                                 mode: "LIVE",
-                                characteristics: ["ip"],
+                                characteristics: [], // Empty = automatic request fingerprinting
                                 refillRate: 10,
                                 interval: 60,
                                 capacity: 15,
                             })
                         )
-                        .withRule(detectBot({ mode: "LIVE", allow: [] }))
-                        .withRule(shield({ mode: "LIVE" }))
-                        .protect(request, {
-                            requested: requestCost,
-                            ip: clientIp // ⭐ Add the IP here
-                        });
+                        .withRule(
+                            detectBot({
+                                mode: "LIVE",
+                                allow: [],
+                            })
+                        )
+                        .withRule(
+                            shield({
+                                mode: "LIVE",
+                            })
+                        )
+                        .protect(request, { requested: requestCost });
 
                     console.log(`📊 Arcjet decision: ${decision.conclusion}`);
 
@@ -165,21 +176,46 @@ export async function POST(request: NextRequest) {
                         }
 
                         return NextResponse.json(
-                            { error: "Request blocked" },
+                            {
+                                error: "Request blocked",
+                                message: "Your request was blocked by our security system.",
+                            },
                             { status: 403 }
                         );
                     }
 
                     console.log(`✅ Request allowed by Arcjet`);
-                } catch (arcjetError) {
-                    console.error(`⚠️ Arcjet error:`, arcjetError);
-                    // Continue without rate limiting if Arcjet fails
+                } catch (arcjetError: any) {
+                    console.error(`⚠️ Arcjet error:`, arcjetError.message);
+
+                    // Fallback to simple rate limiter if Arcjet fails
+                    console.log(`⚠️ Falling back to simple rate limiter`);
+
+                    const allowed = simpleRateLimit('fallback', 15, 60000);
+
+                    if (!allowed) {
+                        return NextResponse.json(
+                            {
+                                error: "Rate limit exceeded",
+                                message: "You're making requests too quickly. Please wait a moment.",
+                            },
+                            { status: 429 }
+                        );
+                    }
+
+                    console.log(`✅ Request allowed (fallback limiter)`);
                 }
             }
         }
 
+        /**
+         * 🧠 Create job in MongoDB queue
+         */
         const jobId = await createJob(prompt);
 
+        /**
+         * ⚡ Return instantly
+         */
         return NextResponse.json({
             success: true,
             jobId: jobId.toString(),
@@ -189,6 +225,7 @@ export async function POST(request: NextRequest) {
 
     } catch (error) {
         console.error("Create job error:", error);
+
         return NextResponse.json(
             { error: "Failed to create job" },
             { status: 500 }
