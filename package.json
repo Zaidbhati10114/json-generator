@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "test:load:sequential": "node tests/load/rate-limit-sequential.test.js",
+    "test:load:parallel": "node tests/load/rate-limit-parallel.test.js",
+    "test:load": "npm run test:load:sequential && npm run test:load:parallel"
   },
   "dependencies": {
     "@ai-sdk/google": "^2.0.31",
